@@ -1,27 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Product } from '@/components/dashboard/ProductTable';
 
-interface AddProductModalProps {
+interface EditProductModalProps {
+  product: Product | null;
   isOpen: boolean;
   onClose: () => void;
-  onProductAdded: () => void; // Function to call when a product is added to refresh the list
+  onProductUpdated: () => void; // Function to call when a product is updated to refresh the list
 }
 
-export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductModalProps) {
+export function EditProductModal({ product, isOpen, onClose, onProductUpdated }: EditProductModalProps) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
-  const [status, setStatus] = useState('Draft');
+  const [status, setStatus] = useState('Active');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  // Update form fields when product prop changes
+  useEffect(() => {
+    if (product) {
+      setName(product.name);
+      setCategory(product.category);
+      setPrice(product.price.toString());
+      setStock(product.stock.toString());
+      setStatus(product.status);
+      setDescription(product.description || '');
+      setImage(product.image || '');
+    }
+  }, [product]);
+
+  if (!isOpen || !product) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,8 +44,8 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
     setError(null);
     
     try {
-      const response = await fetch('/api/products', {
-        method: 'POST',
+      const response = await fetch(`/api/products/${product._id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -47,24 +62,15 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add product');
+        throw new Error(errorData.error || 'Failed to update product');
       }
-      
-      // Reset form
-      setName('');
-      setCategory('');
-      setPrice('');
-      setStock('');
-      setStatus('Draft');
-      setDescription('');
-      setImage('');
       
       // Close modal and refresh product list
       onClose();
-      onProductAdded();
+      onProductUpdated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      console.error('Error adding product:', err);
+      console.error('Error updating product:', err);
     } finally {
       setLoading(false);
     }
@@ -73,7 +79,7 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Add New Product</h2>
+        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Edit Product</h2>
         
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 rounded-md">
@@ -182,7 +188,7 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
               type="submit" 
               disabled={loading}
             >
-              {loading ? 'Saving...' : 'Save'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

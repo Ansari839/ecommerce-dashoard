@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 
 interface ProductSearchProps {
@@ -7,13 +9,18 @@ interface ProductSearchProps {
 
 export function ProductSearch({ value, onChange }: ProductSearchProps) {
   return (
-    <div className="relative">
+    <div className="relative w-full max-w-md">
+      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+        <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+          <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+        </svg>
+      </div>
       <input
         type="text"
         placeholder="Search products..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 h-10 max-w-md"
+        className="block w-full p-2 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
       />
     </div>
   );

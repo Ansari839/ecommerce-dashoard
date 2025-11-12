@@ -7,7 +7,6 @@ export interface IProduct extends Document {
   stock: number;
   status: 'Active' | 'Draft' | 'Out of Stock';
   image?: string;
-  description?: string;
 }
 
 const ProductSchema: Schema = new Schema({
@@ -44,11 +43,6 @@ const ProductSchema: Schema = new Schema({
   image: {
     type: String,
     trim: true
-  },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters']
   }
 }, {
   timestamps: true // Adds createdAt and updatedAt fields

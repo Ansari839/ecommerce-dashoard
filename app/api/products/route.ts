@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllProducts, createProduct } from '@/lib/controllers/productController';
+import { getAllProducts, createProduct } from '@/controllers/productController';
 
 export async function GET(request: NextRequest) {
   try {
     // Extract query parameters
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || undefined;
-    
-    const result = await getAllProducts(page, limit, search);
-    
+
+    const result = await getAllProducts(search);
+
     if (!result.success) {
       return NextResponse.json(
         { error: result.error },
         { status: 500 }
       );
     }
-    
+
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error('Error in GET /api/products:', error);
@@ -31,7 +29,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     // Validate required fields
     const requiredFields = ['name', 'category', 'price', 'stock'];
     for (const field of requiredFields) {
@@ -42,13 +40,13 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    
+
     // Ensure price and stock are numbers
     body.price = Number(body.price);
     body.stock = Number(body.stock);
-    
+
     const result = await createProduct(body);
-    
+
     if (!result.success) {
       const status = result.error === 'Validation failed' ? 400 : 500;
       return NextResponse.json(
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
         { status }
       );
     }
-    
+
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/products:', error);

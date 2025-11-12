@@ -19,7 +19,7 @@ if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
-export async function dbConnect() {
+export async function connectDB() {
   if (cached.conn) {
     return cached.conn;
   }
@@ -30,6 +30,7 @@ export async function dbConnect() {
     };
     
     cached.promise = mongoose.connect(MONGODB_URI, options).then((mongoose) => {
+      console.log('MongoDB Connected Successfully');
       return mongoose;
     });
   }
@@ -38,6 +39,7 @@ export async function dbConnect() {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    console.error('MongoDB Connection Error:', e);
     throw e;
   }
   
