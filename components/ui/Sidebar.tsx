@@ -3,27 +3,30 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  Moon, 
-  Sun, 
-  Menu, 
-  X, 
-  LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
-  Users, 
-  CreditCard, 
-  Truck, 
+import {
+  Moon,
+  Sun,
+  Menu,
+  X,
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Users,
+  CreditCard,
+  Truck,
   Megaphone,
   BarChart,
   Store,
-  Settings
+  Settings,
+  TrendingUp,
+  ShoppingBag,
+  Warehouse
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-provider';
 
 // Define the navigation items
 const navItems = [
-  { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+  { name: 'Overview', path: '/dashboard/overview', icon: LayoutDashboard },
   { name: 'Orders', path: '/dashboard/orders', icon: Package },
   { name: 'Products', path: '/dashboard/products', icon: ShoppingCart },
   { name: 'Customers', path: '/dashboard/customers', icon: Users },
@@ -31,6 +34,9 @@ const navItems = [
   { name: 'Shipping', path: '/dashboard/shipping', icon: Truck },
   { name: 'Marketing', path: '/dashboard/marketing', icon: Megaphone },
   { name: 'Reports', path: '/dashboard/reports', icon: BarChart },
+  { name: 'Sales', path: '/dashboard/sales', icon: TrendingUp },
+  { name: 'Purchase', path: '/dashboard/purchases', icon: ShoppingBag },
+  { name: 'Inventory', path: '/dashboard/inventory', icon: Warehouse },
   { name: 'Vendors', path: '/dashboard/vendors', icon: Store },
   { name: 'Settings', path: '/dashboard/settings', icon: Settings },
 ];
@@ -56,7 +62,7 @@ const Sidebar = () => {
       </button>
 
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:static z-40 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 ease-in-out`}
       >
         <div className="flex flex-col h-full">
@@ -79,12 +85,12 @@ const Sidebar = () => {
                 const IconComponent = item.icon;
                 return (
                   <li key={item.name}>
-                    <Link 
+                    <Link
                       href={item.path}
                       onClick={handleLinkClick}
                       className={`flex items-center p-3 rounded-lg transition-colors ${
-                        pathname === item.path 
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-600 dark:text-white' 
+                        pathname === item.path
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-600 dark:text-white'
                           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                       }`}
                     >
@@ -106,7 +112,7 @@ const Sidebar = () => {
 
       {/* Overlay for mobile */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         ></div>
