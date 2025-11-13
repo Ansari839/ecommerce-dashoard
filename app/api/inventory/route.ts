@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getAllInventory, 
-  createInventory 
+import {
+  getInventory,
+  addInventory
 } from '@/controllers/inventoryController';
 import { revalidatePath } from 'next/cache';
+import { authorize } from '@/helpers/authorize';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,10 +12,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
-    const minStock = searchParams.get('minStock') ? parseInt(searchParams.get('minStock') || '0') : undefined;
-    const warehouseLocation = searchParams.get('warehouseLocation') || undefined;
+    const search = searchParams.get('search') || undefined;
 
-    const result = await getAllInventory(page, limit, minStock, warehouseLocation);
+    const result = await getInventory(page, limit, search);
 
     if (!result.success) {
       return NextResponse.json(
@@ -35,10 +35,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authorization - only Admin, Warehouse, or Finance roles can create inventory
+    const allowedRoles = ['Admin', 'Warehouse', 'Finance'];
+    const authResult = authorize(request, allowedRoles);
+    
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     // Validate required fields
-    const requiredFields = ['productId', 'stock', 'warehouseLocation'];
+    const requiredFields = ['productId', 'stock'];
     for (const field of requiredFields) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
         return NextResponse.json(
@@ -56,15 +67,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate warehouse location is a string
-    if (typeof body.warehouseLocation !== 'string' || body.warehouseLocation.trim() === '') {
+    // warehouseLocation is optional now according to the schema
+    if (body.warehouseLocation !== undefined && typeof body.warehouseLocation !== 'string') {
       return NextResponse.json(
-        { error: 'Warehouse location must be a non-empty string' },
+        { error: 'Warehouse location must be a string if provided' },
         { status: 400 }
       );
     }
 
-    const result = await createInventory(body);
+    const result = await addInventory(body);
 
     if (!result.success) {
       const status = result.error === 'Validation failed' ? 400 : 500;

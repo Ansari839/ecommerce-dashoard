@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getInventoryById, 
-  updateInventory, 
-  deleteInventory 
+import {
+  getInventoryById,
+  updateInventory,
+  deleteInventory
 } from '@/controllers/inventoryController';
 import { revalidatePath } from 'next/cache';
+import { authorize } from '@/helpers/authorize';
 
 export async function GET(
   request: NextRequest,
@@ -39,6 +40,17 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Check authorization - only Admin, Warehouse, or Finance roles can update inventory
+    const allowedRoles = ['Admin', 'Warehouse', 'Finance'];
+    const authResult = authorize(request, allowedRoles);
+    
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 403 }
+      );
+    }
+
     // Extract the id from params
     const { id } = params;
     const body = await request.json();
@@ -77,6 +89,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Check authorization - only Admin, Warehouse, or Finance roles can delete inventory
+    const allowedRoles = ['Admin', 'Warehouse', 'Finance'];
+    const authResult = authorize(request, allowedRoles);
+    
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 403 }
+      );
+    }
+
     // Extract the id from params
     const { id } = params;
 

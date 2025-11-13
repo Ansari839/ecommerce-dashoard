@@ -1,367 +1,352 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { CouponsTable, ICoupon } from '@/components/dashboard/marketing/CouponsTable';
-import { FlashSalesTable, IFlashSale } from '@/components/dashboard/marketing/FlashSalesTable';
-import { EmailCampaignsTable, IEmailCampaign } from '@/components/dashboard/marketing/EmailCampaignsTable';
-import { AddCouponModal } from '@/components/dashboard/marketing/AddCouponModal';
-import { AddFlashSaleModal } from '@/components/dashboard/marketing/AddFlashSaleModal';
+import { Badge } from '@/components/ui/badge';
+import { 
+  BarChart3, 
+  TrendingUp, 
+  MousePointerClick, 
+  Target, 
+  DollarSign, 
+  Users, 
+  Calendar,
+  PlusCircle
+} from 'lucide-react';
+import { SocialLinks } from '@/components/marketing/SocialLinks';
+import { SEOManager } from '@/components/marketing/SEOManager';
+import { format, subDays } from 'date-fns';
 
-export default function MarketingPage() {
-  // State for filters
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  
-  // State for tabs
-  const [activeTab, setActiveTab] = useState<string>('coupons');
-  
-  // State for data
-  const [coupons, setCoupons] = useState<ICoupon[]>([]);
-  const [flashSales, setFlashSales] = useState<IFlashSale[]>([]);
-  const [emailCampaigns, setEmailCampaigns] = useState<IEmailCampaign[]>([]);
-  
-  // Loading states
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Modal states
-  const [isCouponModalOpen, setIsCouponModalOpen] = useState<boolean>(false);
-  const [isFlashSaleModalOpen, setIsFlashSaleModalOpen] = useState<boolean>(false);
-  const [editingCoupon, setEditingCoupon] = useState<ICoupon | null>(null);
-  const [editingFlashSale, setEditingFlashSale] = useState<IFlashSale | null>(null);
-  
-  // Refresh trigger
-  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+interface CampaignInsight {
+  platform: string;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  spend: number;
+  ctr: number;
+  roas: number;
+}
 
-  // Fetch data based on active tab and filters
+interface SocialMetric {
+  platform: string;
+  followers: number;
+  engagements: number;
+  reach: number;
+}
+
+export default function MarketingDashboard() {
+  const [campaignInsights, setCampaignInsights] = useState<CampaignInsight[]>([]);
+  const [socialMetrics, setSocialMetrics] = useState<SocialMetric[]>([]);
+  const [dateRange, setDateRange] = useState('7d');
+
   useEffect(() => {
-    const fetchMarketingData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const params = new URLSearchParams();
-        params.append('status', statusFilter);
-        if (searchTerm) params.append('search', searchTerm);
-        
-        switch (activeTab) {
-          case 'coupons':
-            const couponsResponse = await fetch(`/api/marketing?resource=coupons&${params.toString()}`);
-            if (!couponsResponse.ok) throw new Error('Failed to fetch coupons');
-            const couponsData = await couponsResponse.json();
-            setCoupons(couponsData.success ? couponsData.data : []);
-            break;
-            
-          case 'flash-sales':
-            const flashSalesResponse = await fetch(`/api/marketing?resource=flash-sales&${params.toString()}`);
-            if (!flashSalesResponse.ok) throw new Error('Failed to fetch flash sales');
-            const flashSalesData = await flashSalesResponse.json();
-            setFlashSales(flashSalesData.success ? flashSalesData.data : []);
-            break;
-            
-          case 'email-campaigns':
-            const emailCampaignsResponse = await fetch(`/api/marketing?resource=email-campaigns&${params.toString()}`);
-            if (!emailCampaignsResponse.ok) throw new Error('Failed to fetch email campaigns');
-            const emailCampaignsData = await emailCampaignsResponse.json();
-            setEmailCampaigns(emailCampaignsData.success ? emailCampaignsData.data : []);
-            break;
-        }
-      } catch (err: any) {
-        setError(err.message || 'An error occurred while fetching data');
-        console.error('Error fetching marketing data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    // Simulate fetching marketing data
     fetchMarketingData();
-  }, [activeTab, statusFilter, searchTerm, refreshTrigger]);
+  }, [dateRange]);
 
-  // Handle saving a coupon
-  const handleSaveCoupon = async (coupon: ICoupon) => {
-    try {
-      const endpoint = coupon._id ? `/api/marketing` : `/api/marketing`;
-      const method = coupon._id ? 'PUT' : 'POST';
-      
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resource: 'coupons',
-          id: coupon._id,
-          data: {
-            code: coupon.code,
-            discountType: coupon.discountType,
-            discountValue: coupon.discountValue,
-            minimumOrderAmount: coupon.minimumOrderAmount,
-            startDate: coupon.startDate,
-            endDate: coupon.endDate,
-            maxUses: coupon.maxUses,
-            isActive: coupon.isActive,
-            usageLimitPerUser: coupon.usageLimitPerUser
-          }
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to save coupon');
-      
-      setIsCouponModalOpen(false);
-      setEditingCoupon(null);
-      setRefreshTrigger(prev => prev + 1); // Trigger a refresh
-    } catch (err) {
-      console.error('Error saving coupon:', err);
-      setError('Failed to save coupon');
-    }
-  };
-
-  // Handle saving a flash sale
-  const handleSaveFlashSale = async (flashSale: IFlashSale) => {
-    try {
-      const endpoint = flashSale._id ? `/api/marketing` : `/api/marketing`;
-      const method = flashSale._id ? 'PUT' : 'POST';
-      
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resource: 'flash-sales',
-          id: flashSale._id,
-          data: {
-            title: flashSale.title,
-            description: flashSale.description,
-            productId: flashSale.productId,
-            discountPercentage: flashSale.discountPercentage,
-            salePrice: flashSale.salePrice,
-            originalPrice: flashSale.originalPrice,
-            startDate: flashSale.startDate,
-            endDate: flashSale.endDate,
-            maxQuantity: flashSale.maxQuantity,
-            remainingQuantity: flashSale.remainingQuantity
-          }
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to save flash sale');
-      
-      setIsFlashSaleModalOpen(false);
-      setEditingFlashSale(null);
-      setRefreshTrigger(prev => prev + 1); // Trigger a refresh
-    } catch (err) {
-      console.error('Error saving flash sale:', err);
-      setError('Failed to save flash sale');
-    }
-  };
-
-  // Handle deleting a coupon
-  const handleDeleteCoupon = async (id: string) => {
-    if (confirm('Are you sure you want to delete this coupon?')) {
-      try {
-        const response = await fetch(`/api/marketing?resource=coupons&id=${id}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) throw new Error('Failed to delete coupon');
-        
-        setRefreshTrigger(prev => prev + 1); // Trigger a refresh
-      } catch (err) {
-        console.error('Error deleting coupon:', err);
-        setError('Failed to delete coupon');
+  const fetchMarketingData = () => {
+    // Mock data - in a real app, this would come from your API
+    setCampaignInsights([
+      {
+        platform: 'Meta',
+        impressions: 250000,
+        clicks: 4200,
+        conversions: 180,
+        spend: 3200,
+        ctr: 1.68,
+        roas: 3.2
+      },
+      {
+        platform: 'Google',
+        impressions: 180000,
+        clicks: 3200,
+        conversions: 150,
+        spend: 2800,
+        ctr: 1.78,
+        roas: 2.8
+      },
+      {
+        platform: 'TikTok',
+        impressions: 500000,
+        clicks: 12500,
+        conversions: 95,
+        spend: 1800,
+        ctr: 2.5,
+        roas: 1.9
       }
-    }
-  };
+    ]);
 
-  // Handle deleting a flash sale
-  const handleDeleteFlashSale = async (id: string) => {
-    if (confirm('Are you sure you want to delete this flash sale?')) {
-      try {
-        const response = await fetch(`/api/marketing?resource=flash-sales&id=${id}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) throw new Error('Failed to delete flash sale');
-        
-        setRefreshTrigger(prev => prev + 1); // Trigger a refresh
-      } catch (err) {
-        console.error('Error deleting flash sale:', err);
-        setError('Failed to delete flash sale');
+    setSocialMetrics([
+      {
+        platform: 'Facebook',
+        followers: 12500,
+        engagements: 2800,
+        reach: 45000
+      },
+      {
+        platform: 'Instagram',
+        followers: 8500,
+        engagements: 3500,
+        reach: 32000
+      },
+      {
+        platform: 'Twitter',
+        followers: 5200,
+        engagements: 1200,
+        reach: 18000
       }
-    }
+    ]);
   };
 
-  // Handle deleting an email campaign
-  const handleDeleteCampaign = async (id: string) => {
-    if (confirm('Are you sure you want to delete this email campaign?')) {
-      try {
-        const response = await fetch(`/api/marketing?resource=email-campaigns&id=${id}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) throw new Error('Failed to delete email campaign');
-        
-        setRefreshTrigger(prev => prev + 1); // Trigger a refresh
-      } catch (err) {
-        console.error('Error deleting email campaign:', err);
-        setError('Failed to delete email campaign');
-      }
-    }
-  };
-
-  // Render the active tab content
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'coupons':
-        return (
-          <CouponsTable
-            coupons={coupons}
-            loading={loading}
-            error={error}
-            onEdit={(coupon) => {
-              setEditingCoupon(coupon);
-              setIsCouponModalOpen(true);
-            }}
-            onDelete={handleDeleteCoupon}
-            onAddNew={() => {
-              setEditingCoupon(null);
-              setIsCouponModalOpen(true);
-            }}
-          />
-        );
-      case 'flash-sales':
-        return (
-          <FlashSalesTable
-            flashSales={flashSales}
-            loading={loading}
-            error={error}
-            onEdit={(flashSale) => {
-              setEditingFlashSale(flashSale);
-              setIsFlashSaleModalOpen(true);
-            }}
-            onDelete={handleDeleteFlashSale}
-            onAddNew={() => {
-              setEditingFlashSale(null);
-              setIsFlashSaleModalOpen(true);
-            }}
-          />
-        );
-      case 'email-campaigns':
-        return (
-          <EmailCampaignsTable
-            campaigns={emailCampaigns}
-            loading={loading}
-            error={error}
-            onEdit={(campaign) => console.log('Edit campaign:', campaign)}
-            onDelete={handleDeleteCampaign}
-            onAddNew={() => console.log('Add new campaign')}
-            onSend={(id) => console.log('Sending campaign:', id)}
-          />
-        );
-      default:
-        return <div>Select a tab to view content</div>;
-    }
-  };
+  // Calculate totals
+  const totalImpressions = campaignInsights.reduce((sum, camp) => sum + camp.impressions, 0);
+  const totalClicks = campaignInsights.reduce((sum, camp) => sum + camp.clicks, 0);
+  const totalConversions = campaignInsights.reduce((sum, camp) => sum + camp.conversions, 0);
+  const totalSpend = campaignInsights.reduce((sum, camp) => sum + camp.spend, 0);
+  const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+  const totalROAS = totalSpend > 0 ? (totalConversions * 50) / totalSpend : 0; // Assuming $50 average order value
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="container mx-auto py-10 px-4">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Marketing & Promotions</h1>
-          <p className="text-muted-foreground mt-1">Manage discounts, flash sales, and campaigns</p>
+          <h1 className="text-3xl font-bold flex items-center">
+            <BarChart3 className="mr-3 h-8 w-8" />
+            Marketing Dashboard
+          </h1>
+          <p className="text-muted-foreground">Track and analyze your marketing performance</p>
+        </div>
+        <div className="flex space-x-3">
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className="border rounded-md px-3 py-2"
+          >
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+          </select>
+          <Button>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Campaign
+          </Button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="w-full sm:w-64">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-              <SelectItem value="scheduled">Scheduled</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Impressions</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalImpressions.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Across all campaigns</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+            <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalClicks.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">+12% from last period</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Spend</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalSpend.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Optimized spend</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg. ROAS</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalROAS.toFixed(2)}x</div>
+            <p className="text-xs text-muted-foreground">Return on ad spend</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Campaign Performance */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Campaign Performance</CardTitle>
+                <Badge variant="outline">By Platform</Badge>
+              </div>
+              <CardDescription>
+                Performance metrics across your marketing campaigns
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {campaignInsights.map((campaign, index) => (
+                  <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center">
+                        <Badge className="mr-3">{campaign.platform}</Badge>
+                        <span className="font-medium">Campaign #{index + 1}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold">${campaign.spend.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Spent</div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-4 mt-3">
+                      <div>
+                        <div className="text-sm font-medium">{campaign.impressions.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Impressions</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">{campaign.clicks.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Clicks</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">{campaign.ctr.toFixed(2)}%</div>
+                        <div className="text-xs text-muted-foreground">CTR</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">{campaign.roas.toFixed(2)}x</div>
+                        <div className="text-xs text-muted-foreground">ROAS</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-        <div className="w-full sm:w-80">
-          <Input
-            type="text"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+
+        {/* Social Metrics */}
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Social Reach</CardTitle>
+              <CardDescription>
+                Your social media performance
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {socialMetrics.map((metric, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Badge className="mr-3">{metric.platform}</Badge>
+                      <div>
+                        <div className="font-medium">{metric.followers.toLocaleString()} followers</div>
+                        <div className="text-xs text-muted-foreground">{metric.engagements.toLocaleString()} engagements</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">{metric.reach.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Reach</div>
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="pt-4">
+                  <h3 className="font-medium mb-3">Connected Social Accounts</h3>
+                  <SocialLinks />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
-        <Button
-          variant={activeTab === 'coupons' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('coupons')}
-          className="mr-2"
-        >
-          Discount Codes
-        </Button>
-        <Button
-          variant={activeTab === 'flash-sales' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('flash-sales')}
-          className="mr-2"
-        >
-          Flash Sales
-        </Button>
-        <Button
-          variant={activeTab === 'email-campaigns' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('email-campaigns')}
-          className="mr-2"
-        >
-          Email Campaigns
-        </Button>
-        <Button
-          variant={activeTab === 'deal-of-day' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('deal-of-day')}
-          className="mr-2"
-        >
-          Deal of the Day
-        </Button>
-        <Button
-          variant={activeTab === 'upsell-crosssell' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('upsell-crosssell')}
-        >
-          Upsell / Cross-sell
-        </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* SEO Configuration */}
+        <SEOManager />
+        
+        {/* Analytics Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Analytics Overview</CardTitle>
+            <CardDescription>
+              Key metrics from Google Analytics
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="border rounded-lg p-4">
+                <div className="text-2xl font-bold">4,521</div>
+                <div className="text-sm text-muted-foreground">Sessions</div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-2xl font-bold">2.34%</div>
+                <div className="text-sm text-muted-foreground">Bounce Rate</div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-2xl font-bold">00:02:45</div>
+                <div className="text-sm text-muted-foreground">Avg. Session</div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-2xl font-bold">34.2%</div>
+                <div className="text-sm text-muted-foreground">New Visitors</div>
+              </div>
+            </div>
+            
+            <div className="mt-6">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-medium">Traffic Sources</h3>
+                <span className="text-sm text-muted-foreground">Last 30 days</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Organic Search</span>
+                    <span>52%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '52%' }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Social Media</span>
+                    <span>28%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: '28%' }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Direct</span>
+                    <span>15%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-green-600 h-2 rounded-full" style={{ width: '15%' }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Referrals</span>
+                    <span>5%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '5%' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* Tab Content */}
-      {renderTabContent()}
-
-      {/* Modals */}
-      {isCouponModalOpen && (
-        <AddCouponModal
-          isOpen={isCouponModalOpen}
-          onClose={() => {
-            setIsCouponModalOpen(false);
-            setEditingCoupon(null);
-          }}
-          coupon={editingCoupon || undefined}
-          onSave={handleSaveCoupon}
-        />
-      )}
-
-      {isFlashSaleModalOpen && (
-        <AddFlashSaleModal
-          isOpen={isFlashSaleModalOpen}
-          onClose={() => {
-            setIsFlashSaleModalOpen(false);
-            setEditingFlashSale(null);
-          }}
-          flashSale={editingFlashSale || undefined}
-          onSave={handleSaveFlashSale}
-        />
-      )}
     </div>
   );
 }

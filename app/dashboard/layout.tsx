@@ -1,19 +1,44 @@
-import React from 'react';
-import Sidebar from '@/components/ui/Sidebar';
+import { ReactNode } from 'react';
+import Sidebar from '@/components/layouts/Sidebar';
+import Header from '@/components/layouts/Header';
 
 export default function DashboardLayout({
   children,
+  params
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
+  params: { slug?: string[] };
 }) {
+  // Determine page title based on the route
+  const getPageTitle = () => {
+    if (!params.slug) return 'Dashboard';
+    
+    const page = params.slug[0];
+    switch(page) {
+      case 'products': return 'Products';
+      case 'orders': return 'Orders';
+      case 'customers': return 'Customers';
+      case 'inventory': return 'Inventory';
+      case 'sales': return 'Sales';
+      case 'purchases': return 'Purchases';
+      case 'payments': return 'Payments';
+      case 'shipping': return 'Shipping';
+      case 'marketing': return 'Marketing';
+      case 'reports': return 'Reports';
+      case 'settings': return 'Settings';
+      default: return 'Dashboard';
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex min-h-screen w-full bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
-        <div className="w-full max-w-screen-xl mx-auto">
+      <div className="flex flex-col w-full ml-0 md:ml-64">
+        <Header title={getPageTitle()} />
+        <main className="flex-1 p-4 md:p-6">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,332 +1,319 @@
 import { connectDB } from '@/lib/db';
-import Coupon from '@/models/Coupon';
-import FlashSale from '@/models/FlashSale';
-import EmailCampaign from '@/models/EmailCampaign';
+import MarketingCampaign from '@/models/MarketingCampaign';
 import { success, error } from '@/helpers/responseHandler';
 import { MESSAGES } from '@/constants/messages';
+import { calculateROAS, calculateCTR, calculateConversionRate } from '@/helpers/adAnalytics';
 import mongoose from 'mongoose';
 
-// Get all coupons
-export async function getAllCoupons(status?: string, search?: string) {
+/**
+ * Create a new marketing campaign
+ */
+export async function createCampaign(campaignData: {
+  platform: string;
+  campaignName: string;
+  budget: number;
+  spent: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  startDate: Date;
+  endDate: Date;
+  status: string;
+}) {
   try {
     await connectDB();
 
-    let query: any = {};
-    
-    // Add status filter if provided
-    if (status && status !== 'all') {
-      if (status === 'active') {
-        query.isActive = true;
-        query.startDate = { $lte: new Date() };
-        query.endDate = { $gte: new Date() };
-      } else if (status === 'expired') {
-        query.endDate = { $lt: new Date() };
-      } else if (status === 'scheduled') {
-        query.startDate = { $gt: new Date() };
-      }
-    }
-    
-    // Add search filter if provided
-    if (search) {
-      query.code = { $regex: search, $options: 'i' };
+    // Validate date range
+    if (new Date(campaignData.startDate) > new Date(campaignData.endDate)) {
+      return error(MESSAGES.INVALID_DATE_RANGE);
     }
 
-    const coupons = await Coupon.find(query).sort({ createdAt: -1 });
+    const newCampaign = new MarketingCampaign(campaignData);
+    const savedCampaign = await newCampaign.save();
 
-    return success(coupons, MESSAGES.COUPONS_FETCHED);
+    return success(savedCampaign, MESSAGES.MARKETING_CAMPAIGN_CREATED);
   } catch (err: any) {
-    console.error('Error fetching coupons:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
+    console.error('Error creating campaign:', err);
 
-// Create a new coupon
-export async function createCoupon(couponData: any) {
-  try {
-    await connectDB();
-
-    // Validate that the code doesn't already exist
-    const existingCoupon = await Coupon.findOne({ code: couponData.code.toUpperCase() });
-    if (existingCoupon) {
-      return error(MESSAGES.COUPON_CODE_EXISTS);
-    }
-
-    // Create the coupon
-    const coupon = new Coupon({
-      ...couponData,
-      code: couponData.code.toUpperCase()
-    });
-    const savedCoupon = await coupon.save();
-
-    return success(savedCoupon, MESSAGES.COUPON_CREATED);
-  } catch (err: any) {
-    console.error('Error creating coupon:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Update a coupon
-export async function updateCoupon(id: string, couponData: any) {
-  try {
-    await connectDB();
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return error(MESSAGES.INVALID_ID);
-    }
-
-    // Check if the coupon exists
-    const existingCoupon = await Coupon.findById(id);
-    if (!existingCoupon) {
-      return error(MESSAGES.COUPON_NOT_FOUND);
-    }
-
-    // Check if the new code already exists (for different coupon)
-    if (couponData.code && couponData.code.toUpperCase() !== existingCoupon.code) {
-      const duplicateCode = await Coupon.findOne({ 
-        code: couponData.code.toUpperCase(),
-        _id: { $ne: id }
+    // Handle validation errors
+    if (err.name === 'ValidationError') {
+      const errors: Record<string, string> = {};
+      Object.keys(err.errors).forEach((key) => {
+        errors[key] = err.errors[key].message;
       });
-      if (duplicateCode) {
-        return error(MESSAGES.COUPON_CODE_EXISTS);
+      return error(MESSAGES.VALIDATION_ERROR);
+    }
+
+    return error(MESSAGES.INTERNAL_ERROR);
+  }
+}
+
+/**
+ * Get all marketing campaigns with optional filters
+ */
+export async function getCampaigns(
+  page: number = 1,
+  limit: number = 10,
+  filters: {
+    platform?: string;
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+  } = {}
+) {
+  try {
+    await connectDB();
+
+    // Build query object
+    let query: any = {};
+
+    // Add filters if provided
+    if (filters.platform) {
+      query.platform = filters.platform;
+    }
+
+    if (filters.status) {
+      query.status = filters.status;
+    }
+
+    if (filters.startDate || filters.endDate) {
+      query.startDate = {};
+      if (filters.startDate) query.startDate.$gte = new Date(filters.startDate);
+      if (filters.endDate) query.startDate.$lte = new Date(filters.endDate);
+    }
+
+    // Calculate total count for pagination
+    const total = await MarketingCampaign.countDocuments(query);
+
+    // Get campaigns with pagination
+    const campaigns = await MarketingCampaign.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Calculate metrics for each campaign
+    const campaignsWithMetrics = campaigns.map(campaign => {
+      return {
+        ...campaign.toObject(),
+        metrics: {
+          ctr: calculateCTR(campaign.clicks, campaign.impressions),
+          conversionRate: calculateConversionRate(campaign.conversions, campaign.clicks),
+          cpc: campaign.clicks > 0 ? campaign.spent / campaign.clicks : 0,
+          roas: calculateROAS(campaign.conversions, campaign.spent)
+        }
+      };
+    });
+
+    return success({
+      campaigns: campaignsWithMetrics,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
+    }, MESSAGES.MARKETING_CAMPAIGNS_FETCHED);
+  } catch (err: any) {
+    console.error('Error fetching campaigns:', err);
+    return error(MESSAGES.INTERNAL_ERROR);
+  }
+}
+
+/**
+ * Get a specific marketing campaign by ID
+ */
+export async function getCampaignById(id: string) {
+  try {
+    await connectDB();
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return error(MESSAGES.INVALID_ID);
+    }
+
+    const campaign = await MarketingCampaign.findById(id);
+
+    if (!campaign) {
+      return error(MESSAGES.MARKETING_CAMPAIGN_NOT_FOUND);
+    }
+
+    // Calculate metrics for the campaign
+    const metrics = {
+      ctr: calculateCTR(campaign.clicks, campaign.impressions),
+      conversionRate: calculateConversionRate(campaign.conversions, campaign.clicks),
+      cpc: campaign.clicks > 0 ? campaign.spent / campaign.clicks : 0,
+      roas: calculateROAS(campaign.conversions, campaign.spent)
+    };
+
+    return success({
+      ...campaign.toObject(),
+      metrics
+    }, MESSAGES.MARKETING_CAMPAIGN_FETCHED);
+  } catch (err: any) {
+    console.error('Error fetching campaign:', err);
+    return error(MESSAGES.INTERNAL_ERROR);
+  }
+}
+
+/**
+ * Update an existing marketing campaign
+ */
+export async function updateCampaign(id: string, campaignData: Partial<{
+  platform: string;
+  campaignName: string;
+  budget: number;
+  spent: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  startDate: Date;
+  endDate: Date;
+  status: string;
+}>) {
+  try {
+    await connectDB();
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return error(MESSAGES.INVALID_ID);
+    }
+
+    // Validate date range if dates are being updated
+    if (campaignData.startDate || campaignData.endDate) {
+      const campaign = await MarketingCampaign.findById(id);
+      if (!campaign) {
+        return error(MESSAGES.MARKETING_CAMPAIGN_NOT_FOUND);
+      }
+
+      const startDate = campaignData.startDate || campaign.startDate;
+      const endDate = campaignData.endDate || campaign.endDate;
+
+      if (new Date(startDate as Date) > new Date(endDate as Date)) {
+        return error(MESSAGES.INVALID_DATE_RANGE);
       }
     }
 
-    // Update the coupon
-    const updatedCoupon = await Coupon.findByIdAndUpdate(
-      id,
-      { ...couponData, code: couponData.code?.toUpperCase() || existingCoupon.code },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedCoupon) {
-      return error(MESSAGES.COUPON_UPDATE_FAILED);
-    }
-
-    return success(updatedCoupon, MESSAGES.COUPON_UPDATED);
-  } catch (err: any) {
-    console.error('Error updating coupon:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Delete a coupon
-export async function deleteCoupon(id: string) {
-  try {
-    await connectDB();
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return error(MESSAGES.INVALID_ID);
-    }
-
-    const deletedCoupon = await Coupon.findByIdAndDelete(id);
-
-    if (!deletedCoupon) {
-      return error(MESSAGES.COUPON_NOT_FOUND);
-    }
-
-    return success(null, MESSAGES.COUPON_DELETED);
-  } catch (err: any) {
-    console.error('Error deleting coupon:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Get all flash sales
-export async function getAllFlashSales(status?: string, search?: string) {
-  try {
-    await connectDB();
-
-    let query: any = {};
-    
-    // Add status filter if provided
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-    
-    // Add search filter if provided
-    if (search) {
-      query.title = { $regex: search, $options: 'i' };
-    }
-
-    const flashSales = await FlashSale.find(query).sort({ createdAt: -1 });
-
-    return success(flashSales, MESSAGES.FLASH_SALES_FETCHED);
-  } catch (err: any) {
-    console.error('Error fetching flash sales:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Create a new flash sale
-export async function createFlashSale(flashSaleData: any) {
-  try {
-    await connectDB();
-
-    // Create the flash sale
-    const flashSale = new FlashSale(flashSaleData);
-    const savedFlashSale = await flashSale.save();
-
-    return success(savedFlashSale, MESSAGES.FLASH_SALE_CREATED);
-  } catch (err: any) {
-    console.error('Error creating flash sale:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Update a flash sale
-export async function updateFlashSale(id: string, flashSaleData: any) {
-  try {
-    await connectDB();
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return error(MESSAGES.INVALID_ID);
-    }
-
-    // Check if the flash sale exists
-    const existingFlashSale = await FlashSale.findById(id);
-    if (!existingFlashSale) {
-      return error(MESSAGES.FLASH_SALE_NOT_FOUND);
-    }
-
-    // Update the flash sale
-    const updatedFlashSale = await FlashSale.findByIdAndUpdate(
-      id,
-      flashSaleData,
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedFlashSale) {
-      return error(MESSAGES.FLASH_SALE_UPDATE_FAILED);
-    }
-
-    return success(updatedFlashSale, MESSAGES.FLASH_SALE_UPDATED);
-  } catch (err: any) {
-    console.error('Error updating flash sale:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Delete a flash sale
-export async function deleteFlashSale(id: string) {
-  try {
-    await connectDB();
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return error(MESSAGES.INVALID_ID);
-    }
-
-    const deletedFlashSale = await FlashSale.findByIdAndDelete(id);
-
-    if (!deletedFlashSale) {
-      return error(MESSAGES.FLASH_SALE_NOT_FOUND);
-    }
-
-    return success(null, MESSAGES.FLASH_SALE_DELETED);
-  } catch (err: any) {
-    console.error('Error deleting flash sale:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Get all email campaigns
-export async function getAllEmailCampaigns(status?: string, search?: string) {
-  try {
-    await connectDB();
-
-    let query: any = {};
-    
-    // Add status filter if provided
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-    
-    // Add search filter if provided
-    if (search) {
-      query.name = { $regex: search, $options: 'i' };
-    }
-
-    const campaigns = await EmailCampaign.find(query).sort({ createdAt: -1 });
-
-    return success(campaigns, MESSAGES.EMAIL_CAMPAIGNS_FETCHED);
-  } catch (err: any) {
-    console.error('Error fetching email campaigns:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Create a new email campaign
-export async function createEmailCampaign(campaignData: any) {
-  try {
-    await connectDB();
-
-    // Create the email campaign
-    const campaign = new EmailCampaign(campaignData);
-    const savedCampaign = await campaign.save();
-
-    return success(savedCampaign, MESSAGES.EMAIL_CAMPAIGN_CREATED);
-  } catch (err: any) {
-    console.error('Error creating email campaign:', err);
-    return error(MESSAGES.INTERNAL_ERROR);
-  }
-}
-
-// Update an email campaign
-export async function updateEmailCampaign(id: string, campaignData: any) {
-  try {
-    await connectDB();
-
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return error(MESSAGES.INVALID_ID);
-    }
-
-    // Check if the campaign exists
-    const existingCampaign = await EmailCampaign.findById(id);
-    if (!existingCampaign) {
-      return error(MESSAGES.EMAIL_CAMPAIGN_NOT_FOUND);
-    }
-
-    // Update the campaign
-    const updatedCampaign = await EmailCampaign.findByIdAndUpdate(
+    const updatedCampaign = await MarketingCampaign.findByIdAndUpdate(
       id,
       campaignData,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true } // Return updated document and run validations
     );
 
     if (!updatedCampaign) {
-      return error(MESSAGES.EMAIL_CAMPAIGN_UPDATE_FAILED);
+      return error(MESSAGES.MARKETING_CAMPAIGN_NOT_FOUND);
     }
 
-    return success(updatedCampaign, MESSAGES.EMAIL_CAMPAIGN_UPDATED);
+    // Calculate metrics for the updated campaign
+    const metrics = {
+      ctr: calculateCTR(updatedCampaign.clicks, updatedCampaign.impressions),
+      conversionRate: calculateConversionRate(updatedCampaign.conversions, updatedCampaign.clicks),
+      cpc: updatedCampaign.clicks > 0 ? updatedCampaign.spent / updatedCampaign.clicks : 0,
+      roas: calculateROAS(updatedCampaign.conversions, updatedCampaign.spent)
+    };
+
+    return success({
+      ...updatedCampaign.toObject(),
+      metrics
+    }, MESSAGES.MARKETING_CAMPAIGN_UPDATED);
   } catch (err: any) {
-    console.error('Error updating email campaign:', err);
+    console.error('Error updating campaign:', err);
+
+    // Handle validation errors
+    if (err.name === 'ValidationError') {
+      const errors: Record<string, string> = {};
+      Object.keys(err.errors).forEach((key) => {
+        errors[key] = err.errors[key].message;
+      });
+      return error(MESSAGES.VALIDATION_ERROR);
+    }
+
     return error(MESSAGES.INTERNAL_ERROR);
   }
 }
 
-// Delete an email campaign
-export async function deleteEmailCampaign(id: string) {
+/**
+ * Delete a marketing campaign
+ */
+export async function deleteCampaign(id: string) {
   try {
     await connectDB();
 
-    // Validate ObjectId
+    // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return error(MESSAGES.INVALID_ID);
     }
 
-    const deletedCampaign = await EmailCampaign.findByIdAndDelete(id);
+    const deletedCampaign = await MarketingCampaign.findByIdAndDelete(id);
 
     if (!deletedCampaign) {
-      return error(MESSAGES.EMAIL_CAMPAIGN_NOT_FOUND);
+      return error(MESSAGES.MARKETING_CAMPAIGN_NOT_FOUND);
     }
 
-    return success(null, MESSAGES.EMAIL_CAMPAIGN_DELETED);
+    return success(null, MESSAGES.MARKETING_CAMPAIGN_DELETED);
   } catch (err: any) {
-    console.error('Error deleting email campaign:', err);
+    console.error('Error deleting campaign:', err);
+    return error(MESSAGES.INTERNAL_ERROR);
+  }
+}
+
+/**
+ * Sync metadata from external platforms
+ */
+export async function syncMetaData() {
+  try {
+    await connectDB();
+    
+    // This is a placeholder for the actual implementation
+    // In a real application, this would connect to external APIs like:
+    // - Meta Pixel API
+    // - Google Ads API
+    // - TikTok Ads API
+    // - etc.
+    
+    // For now, we'll return a success message
+    return success({ synced: true }, MESSAGES.METADATA_SYNCED);
+  } catch (err: any) {
+    console.error('Error syncing metadata:', err);
+    return error(MESSAGES.INTERNAL_ERROR);
+  }
+}
+
+/**
+ * Fetch analytics data from external platforms
+ */
+export async function fetchAnalytics(campaignId: string, platform: string) {
+  try {
+    await connectDB();
+    
+    // This is a placeholder for the actual implementation
+    // In a real application, this would connect to external APIs
+    // to fetch real-time analytics data
+    
+    // For now, we'll return a mock response with basic info
+    const campaign = await MarketingCampaign.findById(campaignId);
+    
+    if (!campaign) {
+      return error(MESSAGES.MARKETING_CAMPAIGN_NOT_FOUND);
+    }
+
+    // Mock analytics data
+    const analyticsData = {
+      campaignId,
+      platform,
+      impressions: campaign.impressions,
+      clicks: campaign.clicks,
+      conversions: campaign.conversions,
+      spent: campaign.spent,
+      dateRange: {
+        start: campaign.startDate,
+        end: campaign.endDate
+      }
+    };
+
+    return success(analyticsData, MESSAGES.ANALYTICS_FETCHED);
+  } catch (err: any) {
+    console.error('Error fetching analytics:', err);
     return error(MESSAGES.INTERNAL_ERROR);
   }
 }

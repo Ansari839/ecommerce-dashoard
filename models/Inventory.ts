@@ -1,11 +1,11 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import Product from './Product'; // Assuming we have a Product model to reference
 
 export interface IInventory extends Document {
-  productId: string;
+  productId: mongoose.Types.ObjectId;
   stock: number;
-  warehouseLocation: string;
+  warehouseLocation?: string;
   lastUpdated: Date;
+  unitCost?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,17 +20,20 @@ const InventorySchema: Schema = new Schema({
     type: Number,
     required: [true, 'Stock is required'],
     min: [0, 'Stock cannot be negative'],
-    default: 0
   },
   warehouseLocation: {
     type: String,
-    required: [true, 'Warehouse location is required'],
+    required: false, // Optional field
     trim: true,
     maxlength: [100, 'Warehouse location cannot exceed 100 characters']
   },
   lastUpdated: {
     type: Date,
     default: Date.now
+  },
+  unitCost: {
+    type: Number,
+    required: false, // Optional field
   }
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt fields
@@ -38,6 +41,9 @@ const InventorySchema: Schema = new Schema({
 
 // Index for faster queries by productId
 InventorySchema.index({ productId: 1 });
+
+// Text index on warehouseLocation for search functionality
+InventorySchema.index({ warehouseLocation: 'text' });
 
 // Virtual property to populate product details
 InventorySchema.virtual('product', {
