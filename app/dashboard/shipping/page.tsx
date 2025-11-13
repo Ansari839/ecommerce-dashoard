@@ -1,72 +1,176 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { ShippingSearch } from '@/components/dashboard/ShippingSearch';
 import { ShippingTable } from '@/components/dashboard/ShippingTable';
-import { AddShippingModal } from '@/components/dashboard/AddShippingModal';
-import { Plus } from 'lucide-react';
+import { ShippingModal, Shipping } from '@/components/dashboard/ShippingModal';
 
-// Define the ShippingZone type
-interface ShippingZone {
-  id: number;
-  name: string;
-  courier: string;
-  rate: number;
-  deliveryTime: string;
-  status: 'active' | 'inactive';
-}
+const ShippingPage = () => {
+  // State for search and filtering
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [courierFilter, setCourierFilter] = useState('');
+  const [shipments, setShipments] = useState<Shipping[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<{
+    currentPage: number;
+    totalPages: number;
+    totalShipments: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  } | null>(null);
+  
+  // State for modals
+  const [selectedShipping, setSelectedShipping] = useState<Shipping | null>(null);
+  const [modalType, setModalType] = useState<'view' | 'updateStatus' | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // To trigger data refresh
 
-export default function ShippingPage() {
-  // Static sample shipping zone data
-  const [shippingZones, setShippingZones] = useState<ShippingZone[]>([
-    { id: 1, name: 'North America', courier: 'FedEx', rate: 12.99, deliveryTime: '3-5 business days', status: 'active' },
-    { id: 2, name: 'Europe', courier: 'DHL', rate: 18.50, deliveryTime: '5-7 business days', status: 'active' },
-    { id: 3, name: 'Asia', courier: 'UPS', rate: 15.75, deliveryTime: '7-10 business days', status: 'inactive' },
-    { id: 4, name: 'Australia', courier: 'USPS', rate: 22.30, deliveryTime: '10-14 business days', status: 'active' },
-    { id: 5, name: 'South America', courier: 'Other', rate: 20.00, deliveryTime: '10-15 business days', status: 'active' },
-    { id: 6, name: 'Africa', courier: 'DHL', rate: 25.00, deliveryTime: '14-20 business days', status: 'inactive' },
-  ]);
+  // Current page state
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Fetch shipments from the API
+  useEffect(() => {
+    const fetchShipments = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Build query parameters
+        const queryParams = new URLSearchParams();
+        if (searchTerm) queryParams.append('search', searchTerm);
+        if (statusFilter) queryParams.append('status', statusFilter);
+        if (courierFilter) queryParams.append('courier', courierFilter);
+        queryParams.append('page', currentPage.toString());
+        queryParams.append('limit', '10');
+        
+        const response = await fetch(`/api/shipping?${queryParams.toString()}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch shipments');
+        }
+        
+        const data = await response.json();
+        setShipments(data.data.shipments || []);
+        setPagination(data.data.pagination);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        console.error('Error fetching shipments:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleAddShipping = (shippingData: ShippingZone) => {
-    setShippingZones([shippingData, ...shippingZones]);
+    fetchShipments();
+  }, [searchTerm, statusFilter, courierFilter, currentPage, refreshTrigger]);
+
+  // Handle update shipment status
+  const handleUpdateStatus = async (shipmentId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/shipping/${shipmentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update shipment status');
+      }
+
+      // Refresh the shipments list
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      console.error('Error updating shipment status:', err);
+    }
   };
 
-  const handleEditShipping = (shipping: ShippingZone) => {
-    console.log('Edit shipping zone:', shipping);
-    // In a real implementation, you would open the modal with the shipping data
+  // Handle delete shipment
+  const handleDeleteShipping = async (shipmentId: string) => {
+    try {
+      const response = await fetch(`/api/shipping/${shipmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete shipment');
+      }
+
+      // Refresh the shipments list
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      console.error('Error deleting shipment:', err);
+    }
   };
 
-  const handleDeleteShipping = (id: number) => {
-    setShippingZones(shippingZones.filter(shipping => shipping.id !== id));
+  // Open the view details modal
+  const handleViewDetails = (shipping: Shipping) => {
+    setSelectedShipping(shipping);
+    setModalType('view');
+  };
+
+  // Open the update status modal
+  const handleUpdateStatusModal = (shipping: Shipping) => {
+    setSelectedShipping(shipping);
+    setModalType('updateStatus');
+  };
+
+  // Close the modal
+  const closeModal = () => {
+    setModalType(null);
+    setSelectedShipping(null);
+  };
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Shipping Management</h1>
-          <p className="text-muted-foreground mt-1">Manage your shipping zones and courier services</p>
+          <p className="text-muted-foreground mt-1">Manage and track shipment fulfillments</p>
         </div>
-        
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Shipping Zone
-        </Button>
       </div>
 
-      <ShippingTable 
-        shippingZones={shippingZones}
-        onEdit={handleEditShipping}
-        onDelete={handleDeleteShipping}
-      />
+      <div className="flex flex-col gap-4">
+        <ShippingSearch
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          courierFilter={courierFilter}
+          onCourierFilterChange={setCourierFilter}
+        />
 
-      <AddShippingModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAdd={handleAddShipping}
-      />
+        <ShippingTable
+          shipments={shipments}
+          loading={loading}
+          error={error}
+          onViewDetails={handleViewDetails}
+          onUpdateStatus={handleUpdateStatusModal}
+          onDeleteShipping={handleDeleteShipping}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+        />
+      </div>
+
+      {selectedShipping && modalType && (
+        <ShippingModal
+          isOpen={!!modalType}
+          onClose={closeModal}
+          shipping={selectedShipping}
+          modalType={modalType}
+          onUpdateStatus={handleUpdateStatus}
+          onDeleteShipping={handleDeleteShipping}
+        />
+      )}
     </div>
   );
-}
+};
+
+export default ShippingPage;

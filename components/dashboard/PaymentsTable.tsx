@@ -1,20 +1,20 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Trash2 } from 'lucide-react';
-import { Customer } from '@/components/dashboard/CustomerModal';
+import { Eye, DollarSign, Trash2 } from 'lucide-react';
+import { Payment } from '@/components/dashboard/PaymentModal';
 
-interface CustomersTableProps {
-  customers: Customer[];
+interface PaymentsTableProps {
+  payments: Payment[];
   loading: boolean;
   error: string | null;
-  onEditCustomer: (customer: Customer) => void;
-  onViewDetails: (customer: Customer) => void;
-  onDeleteCustomer: (customer: Customer) => void;
+  onViewDetails: (payment: Payment) => void;
+  onRefundPayment: (payment: Payment) => void;
+  onDeletePayment: (payment: Payment) => void;
   pagination: {
     currentPage: number;
     totalPages: number;
-    totalCustomers: number;
+    totalPayments: number;
     hasNextPage: boolean;
     hasPrevPage: boolean;
   } | null;
@@ -140,20 +140,20 @@ const Pagination = ({
   );
 };
 
-export function CustomersTable({ 
-  customers, 
+export function PaymentsTable({ 
+  payments, 
   loading, 
   error, 
   onViewDetails, 
-  onEditCustomer, 
-  onDeleteCustomer,
+  onRefundPayment, 
+  onDeletePayment,
   pagination,
   onPageChange
-}: CustomersTableProps) {
+}: PaymentsTableProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="text-lg text-gray-500 dark:text-gray-400">Loading customers...</div>
+        <div className="text-lg text-gray-500 dark:text-gray-400">Loading payments...</div>
       </div>
     );
   }
@@ -171,61 +171,65 @@ export function CustomersTable({
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Customer ID</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Phone</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Orders</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Spent</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Payment ID</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Customer Name</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Order ID</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Method</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
-          {customers.length === 0 ? (
+          {payments.length === 0 ? (
             <tr>
               <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                No customers found
+                No payments found
               </td>
             </tr>
           ) : (
-            customers.map((customer) => (
-              <tr key={customer._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">#{customer.customerId}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{customer.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{customer.email}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{customer.phone || 'N/A'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{customer.totalOrders}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${customer.totalSpent.toFixed(2)}</td>
+            payments.map((payment) => (
+              <tr key={payment._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">#{payment.paymentId}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{payment.customerName}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">#{payment.orderId}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${payment.amount.toFixed(2)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{payment.method}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    customer.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                    customer.status === 'Inactive' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
-                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                    payment.status === 'Paid' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    payment.status === 'Pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                    payment.status === 'Failed' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
                   }`}>
-                    {customer.status}
+                    {payment.status}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                  {new Date(payment.date).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onViewDetails(customer)}
+                      onClick={() => onViewDetails(payment)}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onEditCustomer(customer)}
+                      onClick={() => onRefundPayment(payment)}
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                     >
-                      <Edit className="h-4 w-4" />
+                      <DollarSign className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onDeleteCustomer(customer)}
+                      onClick={() => onDeletePayment(payment)}
                       className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
                       <Trash2 className="h-4 w-4" />

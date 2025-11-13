@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { StoreInfoForm } from '@/components/dashboard/settings/StoreInfoForm';
 import { TaxSettingsForm } from '@/components/dashboard/settings/TaxSettingsForm';
 import { EmailTemplatesTable } from '@/components/dashboard/settings/EmailTemplatesTable';
 import { LocalizationForm } from '@/components/dashboard/settings/LocalizationForm';
 import { RBACForm } from '@/components/dashboard/settings/RBACForm';
+import { ShippingRulesForm } from '@/components/dashboard/settings/ShippingRulesForm';
+import { PaymentGatewaysForm } from '@/components/dashboard/settings/PaymentGatewaysForm';
+import { AuditLogsTable } from '@/components/dashboard/settings/AuditLogsTable';
 
 export default function SettingsPage() {
   // Store Info state
@@ -20,11 +23,11 @@ export default function SettingsPage() {
     phone: '(555) 123-4567',
     email: 'contact@myecommerce.com'
   });
-  
+
   // Tax Settings state
   const [taxSettings, setTaxSettings] = useState({
-    taxSystem: 'vat',
-    taxRate: 8.5,
+    taxSystem: 'no_tax',
+    taxRate: 0,
     taxIncluded: false,
     regions: [
       { id: 1, name: 'New York', rate: 8.25, enabled: true },
@@ -33,16 +36,37 @@ export default function SettingsPage() {
       { id: 4, name: 'International', rate: 19.0, enabled: true }
     ]
   });
-  
+
+  // Shipping Rules state
+  const [shippingRules, setShippingRules] = useState({
+    freeShippingThreshold: 50,
+    couriers: [
+      { id: 1, name: 'FedEx', enabled: true },
+      { id: 2, name: 'DHL', enabled: true },
+      { id: 3, name: 'UPS', enabled: true }
+    ],
+    zones: [
+      { id: 1, name: 'Domestic', country: 'US', minOrderAmount: 0, cost: 5.99, deliveryTime: '3-5 days', enabled: true },
+      { id: 2, name: 'International', country: 'International', minOrderAmount: 0, cost: 12.99, deliveryTime: '7-14 days', enabled: true }
+    ]
+  });
+
+  // Payment Gateways state
+  const [paymentGateways, setPaymentGateways] = useState([
+    { id: 1, name: 'Stripe', enabled: false, credentials: { apiKey: '', secretKey: '', sandboxMode: true } },
+    { id: 2, name: 'PayPal', enabled: false, credentials: { apiKey: '', secretKey: '', merchantId: '', sandboxMode: true } },
+    { id: 3, name: 'Wallet', enabled: false, credentials: { merchantId: '', sandboxMode: true } }
+  ]);
+
   // Email Templates state
-  const [emailTemplates] = useState([
+  const [emailTemplates, setEmailTemplates] = useState([
     { id: 1, name: 'Order Confirmation', description: 'Sent when an order is placed', enabled: true },
     { id: 2, name: 'Shipping Notification', description: 'Sent when an order is shipped', enabled: true },
     { id: 3, name: 'Refund Processed', description: 'Sent when a refund is processed', enabled: false },
     { id: 4, name: 'Password Reset', description: 'Sent when password reset is requested', enabled: true },
     { id: 5, name: 'Newsletter Signup', description: 'Sent when user signs up for newsletter', enabled: true }
   ]);
-  
+
   // Localization state
   const [localization, setLocalization] = useState({
     currency: 'USD',
@@ -51,7 +75,7 @@ export default function SettingsPage() {
     dateFormat: 'MM/DD/YYYY',
     timeFormat: '12h'
   });
-  
+
   // RBAC state
   const [roles, setRoles] = useState([
     { id: 1, name: 'Administrator', description: 'Full access to all features', permissions: ['Read Products', 'Create Products', 'Update Products', 'Delete Products', 'Read Orders', 'Update Orders', 'Read Customers', 'Update Customers', 'Read Reports', 'Read Settings', 'Update Settings'] },
@@ -59,23 +83,86 @@ export default function SettingsPage() {
     { id: 3, name: 'Staff', description: 'Limited access to customer orders', permissions: ['Read Orders', 'Update Orders', 'Read Customers'] },
     { id: 4, name: 'Accountant', description: 'Access to reports and financial data', permissions: ['Read Orders', 'Read Reports', 'Read Customers'] }
   ]);
-  
+
+  // Audit Logs state
+  const [auditLogs, setAuditLogs] = useState([
+    { id: 1, timestamp: '2023-06-15T10:30:00Z', user: 'admin@example.com', action: 'Updated product', module: 'Products', details: 'Updated product #P123' },
+    { id: 2, timestamp: '2023-06-15T09:45:00Z', user: 'manager@example.com', action: 'Created order', module: 'Orders', details: 'Created order #O456' },
+    { id: 3, timestamp: '2023-06-14T16:20:00Z', user: 'admin@example.com', action: 'Changed settings', module: 'Settings', details: 'Updated tax settings' },
+    { id: 4, timestamp: '2023-06-14T14:10:00Z', user: 'staff@example.com', action: 'Updated order status', module: 'Orders', details: 'Updated order #O789 to Shipped' },
+    { id: 5, timestamp: '2023-06-13T11:55:00Z', user: 'admin@example.com', action: 'Deleted product', module: 'Products', details: 'Deleted product #P101' },
+  ]);
+
   // Active section state
   const [activeSection, setActiveSection] = useState('store');
-  
+
+  // Load settings from API
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (!response.ok) {
+          throw new Error('Failed to fetch settings');
+        }
+        const data = await response.json();
+        
+        if (data.success) {
+          setStoreInfo(data.data.storeInfo || storeInfo);
+          setTaxSettings(data.data.taxSettings || taxSettings);
+          setShippingRules(data.data.shippingSettings || shippingRules);
+          setPaymentGateways(data.data.paymentSettings?.gateways || paymentGateways);
+          setEmailTemplates(data.data.emailSettings?.templates || emailTemplates);
+          setLocalization(data.data.localizationSettings || localization);
+          setRoles(data.data.rbacSettings?.roles || roles);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  // Load audit logs from API
+  useEffect(() => {
+    const fetchAuditLogs = async () => {
+      if (activeSection === 'audit') {
+        try {
+          const response = await fetch('/api/settings?section=audit-logs');
+          if (!response.ok) {
+            throw new Error('Failed to fetch audit logs');
+          }
+          const data = await response.json();
+          
+          if (data.success) {
+            setAuditLogs(data.data || []);
+          }
+        } catch (error) {
+          console.error('Error fetching audit logs:', error);
+        }
+      }
+    };
+
+    fetchAuditLogs();
+  }, [activeSection]);
+
   // Handle email template toggle
   const handleTemplateToggle = (id: number, enabled: boolean) => {
-    console.log(`Template ${id} ${enabled ? 'enabled' : 'disabled'}`);
+    setEmailTemplates(prevTemplates =>
+      prevTemplates.map(template =>
+        template.id === id ? { ...template, enabled } : template
+      )
+    );
   };
-  
+
   // Handle email template edit
   const handleTemplateEdit = (template: any) => {
     console.log('Edit template:', template);
   };
-  
+
   // Handle RBAC permission change
   const handlePermissionChange = (roleId: number, permission: string, checked: boolean) => {
-    setRoles(prevRoles => 
+    setRoles(prevRoles =>
       prevRoles.map(role => {
         if (role.id === roleId) {
           let updatedPermissions = [...role.permissions];
@@ -92,33 +179,60 @@ export default function SettingsPage() {
       })
     );
   };
-  
+
   // Save settings handler
-  const handleSave = () => {
-    console.log('Saving settings...');
-    // In a real implementation, this would save to the backend
-    alert('Settings saved successfully!');
+  const handleSave = async () => {
+    try {
+      const settingsToSave = {
+        storeInfo,
+        taxSettings,
+        shippingSettings: shippingRules,
+        paymentSettings: { gateways: paymentGateways },
+        emailSettings: { templates: emailTemplates },
+        rbacSettings: { roles },
+        localizationSettings: localization
+      };
+
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settingsToSave),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+
+      alert('Settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings');
+    }
   };
-  
+
   // Cancel handler
   const handleCancel = () => {
     // In a real implementation, this would reset to the previous values
     console.log('Cancelled changes');
   };
-  
+
   // Section titles
   const sections = [
-    { id: 'store', title: 'Store Info' },
+    { id: 'store', title: 'Store Settings' },
     { id: 'tax', title: 'Tax Settings' },
+    { id: 'shipping', title: 'Shipping Rules' },
+    { id: 'payment', title: 'Payment Gateways' },
     { id: 'email', title: 'Email Templates' },
-    { id: 'localization', title: 'Currency & Localization' },
-    { id: 'rbac', title: 'Role-based Access Control' }
+    { id: 'rbac', title: 'Roles & Permissions' },
+    { id: 'audit', title: 'Audit Logs' }
   ];
-  
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Settings</h1>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Settings & Configuration</h1>
         <p className="text-muted-foreground mt-1">Manage your store configuration and settings</p>
       </div>
 
@@ -143,7 +257,7 @@ export default function SettingsPage() {
             </nav>
           </div>
         </div>
-        
+
         {/* Main content */}
         <div className="flex-1">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -156,7 +270,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-            
+
             {/* Tax Settings Section */}
             {activeSection === 'tax' && (
               <div className="space-y-6">
@@ -166,32 +280,48 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-            
+
+            {/* Shipping Rules Section */}
+            {activeSection === 'shipping' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold mb-4">Shipping Rules</h2>
+                  <ShippingRulesForm 
+                    shippingRules={shippingRules} 
+                    onChange={setShippingRules} 
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Payment Gateways Section */}
+            {activeSection === 'payment' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold mb-4">Payment Gateways</h2>
+                  <PaymentGatewaysForm 
+                    paymentGateways={paymentGateways} 
+                    onChange={setPaymentGateways} 
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Email Templates Section */}
             {activeSection === 'email' && (
               <div className="space-y-6">
                 <div>
                   <h2 className="text-xl font-semibold mb-4">Email Templates</h2>
-                  <EmailTemplatesTable 
-                    templates={emailTemplates} 
+                  <EmailTemplatesTable
+                    templates={emailTemplates}
                     onEdit={handleTemplateEdit}
-                    onToggle={handleTemplateToggle} 
+                    onToggle={handleTemplateToggle}
                   />
                 </div>
               </div>
             )}
-            
-            {/* Localization Section */}
-            {activeSection === 'localization' && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-xl font-semibold mb-4">Currency & Localization</h2>
-                  <LocalizationForm localization={localization} onChange={setLocalization} />
-                </div>
-              </div>
-            )}
-            
-            {/* RBAC Section */}
+
+            {/* Roles & Permissions Section */}
             {activeSection === 'rbac' && (
               <div className="space-y-6">
                 <div>
@@ -200,7 +330,17 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-            
+
+            {/* Audit Logs Section */}
+            {activeSection === 'audit' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold mb-4">Audit Logs</h2>
+                  <AuditLogsTable logs={auditLogs} />
+                </div>
+              </div>
+            )}
+
             {/* Action buttons */}
             <div className="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
               <Button variant="outline" onClick={handleCancel}>
