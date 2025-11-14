@@ -68,7 +68,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: { isOpen: boolean; to
         )}
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h1 className="text-xl font-bold">eCommerce Dashboard</h1>
+          <h1 className="text-xl font-bold">eCommerce Dashboard..</h1>
         </div>
         <nav className="mt-6">
           <ul>
